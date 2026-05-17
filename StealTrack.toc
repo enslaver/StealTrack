@@ -1,0 +1,15 @@
+## Interface: 120005
+## Title: StealTrack
+## Notes: Tracks stealable buffs for Mage Spellsteal on target, focus, and arena enemies.
+## Author: GitHub Copilot
+## Version: 0.1.0
+## SavedVariables: StealTrackDB
+
+Core\Constants.lua
+Core\Units.lua
+Core\Auras.lua
+Core\Range.lua
+UI\Buttons.lua
+UI\TrackerFrame.lua
+UI\Settings.lua
+StealTrack.lua

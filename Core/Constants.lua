@@ -1,0 +1,42 @@
+local addonName, addon = ...
+
+addon.Constants = {
+    ADDON_NAME = addonName,
+    SPELLSTEAL_SPELL_ID = 30449,
+    BUTTON_SIZE = 44,
+    HEADER_HEIGHT = 18,
+    FRAME_PADDING = 2,
+    TRACKED_UNITS = { "target", "focus", "arena1", "arena2", "arena3", "arena4", "arena5" },
+    REFRESH_INTERVAL_SECONDS = 0.15,
+    DEFAULTS = {
+        point = "CENTER",
+        relativePoint = "CENTER",
+        x = 0,
+        y = -140,
+        scale = 1,
+        buttonSize = 44,
+        spacing = 8,
+        hideArenaTargetsOutsideArena = false,
+        locked = false,
+        orientation = "HORIZONTAL",
+        priorityAuraNames = {
+            ["Power Infusion"] = true,
+            ["Blessing of Freedom"] = true,
+            ["Innervate"] = true,
+            ["Prescience"] = true,
+            ["Avenging Wrath"] = true,
+            ["Alter Time"] = true,
+        },
+    },
+    COLORS = {
+        ACTIVE = { 0.18, 0.95, 0.40, 1 },
+        OUT_OF_RANGE = { 1.00, 0.72, 0.20, 1 },
+        INACTIVE = { 0.35, 0.35, 0.38, 1 },
+        DISABLED = { 0.20, 0.20, 0.22, 1 },
+        BACKDROP = { 0.06, 0.06, 0.08, 0.92 },
+        LABEL = { 0.90, 0.90, 0.95, 1 },
+        MUTED_LABEL = { 0.62, 0.62, 0.68, 1 },
+        PRIORITY = { 0.47, 0.84, 1.00, 1 },
+        PRIORITY_GLOW = { 0.47, 0.84, 1.00, 0.55 },
+    },
+}
