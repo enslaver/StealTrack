@@ -32,9 +32,21 @@ local function CreateButton(parent, width, text)
 	return button
 end
 
+local function GetPriorityEditContentHeight(editBox)
+	local measureText = editBox.MeasureText
+	local stringHeight = 0
+
+	if measureText then
+		measureText:SetText(editBox:GetText() or "")
+		stringHeight = measureText:GetStringHeight() or 0
+	end
+
+	return math.max(math.ceil(stringHeight) + 12, 24)
+end
+
 local function UpdatePriorityEditScroll(scrollFrame, editBox)
 	local scrollBar = scrollFrame.ScrollBar
-	local contentHeight = math.max(math.ceil(editBox:GetStringHeight()) + 12, scrollFrame:GetHeight())
+	local contentHeight = math.max(GetPriorityEditContentHeight(editBox), scrollFrame:GetHeight())
 	local scrollRange
 	local scrollValue
 
@@ -51,23 +63,6 @@ local function UpdatePriorityEditScroll(scrollFrame, editBox)
 		else
 			scrollBar:Hide()
 		end
-	end
-end
-
-local function KeepPriorityCursorVisible(scrollFrame, editBox, cursorY, cursorHeight)
-	local cursorTop = -cursorY
-	local cursorBottom = cursorTop + cursorHeight
-	local scrollValue = scrollFrame:GetVerticalScroll()
-	local visibleBottom = scrollValue + scrollFrame:GetHeight()
-
-	if cursorTop < scrollValue then
-		scrollFrame:SetVerticalScroll(cursorTop)
-	elseif cursorBottom > visibleBottom then
-		scrollFrame:SetVerticalScroll(cursorBottom - scrollFrame:GetHeight())
-	end
-
-	if scrollFrame.ScrollBar then
-		scrollFrame.ScrollBar:SetValue(scrollFrame:GetVerticalScroll())
 	end
 end
 
@@ -193,11 +188,14 @@ function addon.UI.Settings:Register()
 	panel.PriorityEditBox:SetWidth(224)
 	panel.PriorityEditBox:SetPoint("TOPLEFT")
 	panel.PriorityEditBox:SetTextInsets(6, 6, 6, 6)
+	panel.PriorityEditBox.MeasureText = panel.PriorityEditContainer:CreateFontString(nil, "ARTWORK", "ChatFontNormal")
+	panel.PriorityEditBox.MeasureText:SetWidth(212)
+	panel.PriorityEditBox.MeasureText:SetJustifyH("LEFT")
+	panel.PriorityEditBox.MeasureText:SetJustifyV("TOP")
+	panel.PriorityEditBox.MeasureText:SetWordWrap(true)
+	panel.PriorityEditBox.MeasureText:Hide()
 	panel.PriorityEditBox:SetScript("OnTextChanged", function(self)
 		UpdatePriorityEditScroll(panel.PriorityScrollFrame, self)
-	end)
-	panel.PriorityEditBox:SetScript("OnCursorChanged", function(_, _, cursorY, _, cursorHeight)
-		KeepPriorityCursorVisible(panel.PriorityScrollFrame, panel.PriorityEditBox, cursorY, cursorHeight)
 	end)
 	panel.PriorityEditBox:SetScript("OnEditFocusGained", function()
 		panel.isEditingPriorityAuraNames = true

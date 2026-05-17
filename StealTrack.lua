@@ -98,9 +98,10 @@ function addon:BuildUnitState(unitToken)
     local isEnemy = exists and UnitCanAttack("player", unitToken) or false
     local aura
     local isPriorityAura = false
+    local stealableAura
 
     if spellKnown and self.Units:IsValidEnemyUnit(unitToken) then
-        aura = self.Auras:GetDisplayAura(unitToken)
+        aura, stealableAura = self.Auras:GetDisplayAura(unitToken)
         if aura and aura.name and self:IsPriorityAuraName(aura.name) then
             isPriorityAura = true
         end
@@ -109,13 +110,14 @@ function addon:BuildUnitState(unitToken)
     return {
         aura = aura,
         exists = exists,
-        hasStealableAura = aura ~= nil,
-        inRange = aura and self.Range:IsSpellstealInRange(unitToken) or false,
+        hasStealableAura = stealableAura ~= nil,
+        inRange = stealableAura and self.Range:IsSpellstealInRange(unitToken) or false,
         isPriorityAura = isPriorityAura,
         isEnemy = isEnemy,
         label = self.Units:GetDisplayName(unitToken),
         spellKnown = spellKnown,
         spellTexture = self:GetSpellstealTexture(),
+        stealableAura = stealableAura,
         unitName = exists and UnitName(unitToken) or nil,
         unitToken = unitToken,
     }

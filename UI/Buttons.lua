@@ -85,10 +85,12 @@ function addon.UI.Buttons:CreateButton(parent, unitToken)
 
         if self.state.aura then
             GameTooltip:AddLine(self.state.aura.name, 0.35, 0.82, 1)
-            if self.state.inRange then
+            if self.state.hasStealableAura and self.state.inRange then
                 GameTooltip:AddLine("Spellsteal in range", 0.18, 0.95, 0.40)
-            else
+            elseif self.state.hasStealableAura then
                 GameTooltip:AddLine("Spellsteal out of range", 1, 0.72, 0.20)
+            elseif self.state.exists and self.state.isEnemy then
+                GameTooltip:AddLine("No stealable buff detected", 0.72, 0.72, 0.72)
             end
         elseif not self.state.spellKnown then
             GameTooltip:AddLine("Spellsteal unavailable", 1, 0.32, 0.32)

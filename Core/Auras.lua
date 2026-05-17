@@ -62,10 +62,11 @@ end
 
 function addon.Auras:GetDisplayAura(unitToken)
     if not UnitExists(unitToken) then
-        return nil
+        return nil, nil
     end
 
     local index = 1
+    local newestHelpfulAura
     local newestPriorityAura
     local newestStealableAura
 
@@ -77,16 +78,19 @@ function addon.Auras:GetDisplayAura(unitToken)
 
         if not IsAuraSecret(unitToken, index, "HELPFUL") then
             local isStealable = TryGetAuraField(aura, "isStealable")
+            local trackedAura = BuildTrackedAura(aura, index)
+
+            if IsNewerAura(trackedAura, newestHelpfulAura) then
+                newestHelpfulAura = trackedAura
+            end
+
+            if trackedAura.name and addon.IsPriorityAuraName and addon:IsPriorityAuraName(trackedAura.name) and IsNewerAura(trackedAura, newestPriorityAura) then
+                newestPriorityAura = trackedAura
+            end
 
             if isStealable == true then
-                local trackedAura = BuildTrackedAura(aura, index)
-
                 if IsNewerAura(trackedAura, newestStealableAura) then
                     newestStealableAura = trackedAura
-                end
-
-                if trackedAura.name and addon.IsPriorityAuraName and addon:IsPriorityAuraName(trackedAura.name) and IsNewerAura(trackedAura, newestPriorityAura) then
-                    newestPriorityAura = trackedAura
                 end
             end
         end
@@ -94,5 +98,5 @@ function addon.Auras:GetDisplayAura(unitToken)
         index = index + 1
     end
 
-    return newestPriorityAura or newestStealableAura
+    return newestPriorityAura or newestHelpfulAura, newestStealableAura
 end
