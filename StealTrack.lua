@@ -20,6 +20,10 @@ local function Trim(text)
     return (text or ""):match("^%s*(.-)%s*$")
 end
 
+local function NormalizeLineEndings(text)
+    return (text or ""):gsub("|n", "\n"):gsub("\r\n", "\n"):gsub("\r", "\n")
+end
+
 local function MergeDefaults(target, defaults)
     target = target or {}
 
@@ -96,7 +100,7 @@ function addon:BuildUnitState(unitToken)
     local isPriorityAura = false
 
     if spellKnown and self.Units:IsValidEnemyUnit(unitToken) then
-        aura = self.Auras:GetFirstStealableAura(unitToken)
+        aura = self.Auras:GetDisplayAura(unitToken)
         if aura and aura.name and self:IsPriorityAuraName(aura.name) then
             isPriorityAura = true
         end
@@ -134,8 +138,9 @@ end
 
 function addon:SetPriorityAuraNamesFromText(text)
     local updatedNames = {}
+    local normalizedText = NormalizeLineEndings(text)
 
-    for line in string.gmatch((text or "") .. "\n", "(.-)\n") do
+    for line in string.gmatch(normalizedText .. "\n", "(.-)\n") do
         local auraName = Trim(line)
         if auraName ~= "" then
             updatedNames[auraName] = true
@@ -143,6 +148,9 @@ function addon:SetPriorityAuraNamesFromText(text)
     end
 
     self.db.priorityAuraNames = updatedNames
+    if type(StealTrackDB) == "table" then
+        StealTrackDB.priorityAuraNames = updatedNames
+    end
     self:RefreshAll()
 end
 

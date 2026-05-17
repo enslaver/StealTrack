@@ -32,6 +32,45 @@ local function CreateButton(parent, width, text)
 	return button
 end
 
+local function UpdatePriorityEditScroll(scrollFrame, editBox)
+	local scrollBar = scrollFrame.ScrollBar
+	local contentHeight = math.max(math.ceil(editBox:GetStringHeight()) + 12, scrollFrame:GetHeight())
+	local scrollRange
+	local scrollValue
+
+	editBox:SetHeight(contentHeight)
+	scrollRange = math.max(contentHeight - scrollFrame:GetHeight(), 0)
+	scrollValue = math.min(scrollFrame:GetVerticalScroll(), scrollRange)
+	scrollFrame:SetVerticalScroll(scrollValue)
+
+	if scrollBar then
+		scrollBar:SetMinMaxValues(0, scrollRange)
+		scrollBar:SetValue(scrollValue)
+		if scrollRange > 0 then
+			scrollBar:Show()
+		else
+			scrollBar:Hide()
+		end
+	end
+end
+
+local function KeepPriorityCursorVisible(scrollFrame, editBox, cursorY, cursorHeight)
+	local cursorTop = -cursorY
+	local cursorBottom = cursorTop + cursorHeight
+	local scrollValue = scrollFrame:GetVerticalScroll()
+	local visibleBottom = scrollValue + scrollFrame:GetHeight()
+
+	if cursorTop < scrollValue then
+		scrollFrame:SetVerticalScroll(cursorTop)
+	elseif cursorBottom > visibleBottom then
+		scrollFrame:SetVerticalScroll(cursorBottom - scrollFrame:GetHeight())
+	end
+
+	if scrollFrame.ScrollBar then
+		scrollFrame.ScrollBar:SetValue(scrollFrame:GetVerticalScroll())
+	end
+end
+
 function addon.UI.Settings:Register()
 	if self.panel then
 		return
@@ -121,27 +160,61 @@ function addon.UI.Settings:Register()
 	panel.PriorityHelp:SetPoint("TOPLEFT", panel.PriorityLabel, "BOTTOMLEFT", 0, -4)
 	panel.PriorityHelp:SetText("Add or remove spell names here, then click Apply.")
 
-	panel.PriorityEditBox = CreateFrame("EditBox", nil, panel, "BackdropTemplate")
-	panel.PriorityEditBox:SetAutoFocus(false)
-	panel.PriorityEditBox:SetMultiLine(true)
-	panel.PriorityEditBox:SetFontObject(ChatFontNormal)
-	panel.PriorityEditBox:SetSize(260, 140)
-	panel.PriorityEditBox:SetPoint("TOPLEFT", panel.PriorityHelp, "BOTTOMLEFT", 0, -8)
-	panel.PriorityEditBox:SetTextInsets(6, 6, 6, 6)
-	panel.PriorityEditBox:SetBackdrop({
+	panel.PriorityEditContainer = CreateFrame("Frame", nil, panel, "BackdropTemplate")
+	panel.PriorityEditContainer:SetSize(260, 140)
+	panel.PriorityEditContainer:SetPoint("TOPLEFT", panel.PriorityHelp, "BOTTOMLEFT", 0, -8)
+	panel.PriorityEditContainer:SetBackdrop({
 		bgFile = "Interface\\Buttons\\WHITE8X8",
 		edgeFile = "Interface\\Buttons\\WHITE8X8",
 		edgeSize = 1,
 	})
-	panel.PriorityEditBox:SetBackdropColor(0.03, 0.03, 0.04, 0.95)
-	panel.PriorityEditBox:SetBackdropBorderColor(0.20, 0.20, 0.24, 1)
+	panel.PriorityEditContainer:SetBackdropColor(0.03, 0.03, 0.04, 0.95)
+	panel.PriorityEditContainer:SetBackdropBorderColor(0.20, 0.20, 0.24, 1)
+
+	panel.PriorityScrollFrame = CreateFrame("ScrollFrame", "StealTrackPriorityScrollFrame", panel.PriorityEditContainer, "UIPanelScrollFrameTemplate")
+	panel.PriorityScrollFrame:SetPoint("TOPLEFT", 6, -6)
+	panel.PriorityScrollFrame:SetPoint("BOTTOMRIGHT", -28, 6)
+	panel.PriorityScrollFrame.ScrollBar = _G.StealTrackPriorityScrollFrameScrollBar
+	panel.PriorityScrollFrame.ScrollBar:SetValueStep(16)
+	panel.PriorityScrollFrame.ScrollBar:Hide()
+	panel.PriorityScrollFrame:EnableMouseWheel(true)
+	panel.PriorityScrollFrame:SetScript("OnMouseWheel", function(self, delta)
+		local scrollBar = self.ScrollBar
+		local currentValue = scrollBar:GetValue()
+		local step = scrollBar:GetValueStep()
+
+		scrollBar:SetValue(currentValue - (delta * step))
+	end)
+
+	panel.PriorityEditBox = CreateFrame("EditBox", nil, panel.PriorityScrollFrame)
+	panel.PriorityEditBox:SetAutoFocus(false)
+	panel.PriorityEditBox:SetMultiLine(true)
+	panel.PriorityEditBox:SetFontObject(ChatFontNormal)
+	panel.PriorityEditBox:SetWidth(224)
+	panel.PriorityEditBox:SetPoint("TOPLEFT")
+	panel.PriorityEditBox:SetTextInsets(6, 6, 6, 6)
+	panel.PriorityEditBox:SetScript("OnTextChanged", function(self)
+		UpdatePriorityEditScroll(panel.PriorityScrollFrame, self)
+	end)
+	panel.PriorityEditBox:SetScript("OnCursorChanged", function(_, _, cursorY, _, cursorHeight)
+		KeepPriorityCursorVisible(panel.PriorityScrollFrame, panel.PriorityEditBox, cursorY, cursorHeight)
+	end)
+	panel.PriorityEditBox:SetScript("OnEditFocusGained", function()
+		panel.isEditingPriorityAuraNames = true
+	end)
+	panel.PriorityEditBox:SetScript("OnEditFocusLost", function()
+		panel.isEditingPriorityAuraNames = false
+	end)
 	panel.PriorityEditBox:SetScript("OnEscapePressed", function(self)
 		self:ClearFocus()
 	end)
+	panel.PriorityScrollFrame:SetScrollChild(panel.PriorityEditBox)
 
 	panel.ApplyPriorityButton = CreateButton(panel, 90, "Apply")
-	panel.ApplyPriorityButton:SetPoint("TOPLEFT", panel.PriorityEditBox, "BOTTOMLEFT", 0, -10)
+	panel.ApplyPriorityButton:SetPoint("TOPLEFT", panel.PriorityEditContainer, "BOTTOMLEFT", 0, -10)
 	panel.ApplyPriorityButton:SetScript("OnClick", function()
+		panel.isEditingPriorityAuraNames = false
+		panel.PriorityEditBox:ClearFocus()
 		addon:SetPriorityAuraNamesFromText(panel.PriorityEditBox:GetText())
 		panel.Refresh()
 	end)
@@ -155,7 +228,6 @@ function addon.UI.Settings:Register()
 
 	panel.Refresh = function()
 		local priorityText = addon:GetPriorityAuraNamesText()
-		local currentFocus = GetCurrentKeyBoardFocus and GetCurrentKeyBoardFocus() or nil
 		panel.refreshing = true
 		panel.LockCheckbox:SetChecked(addon.db.locked)
 		panel.ScaleSlider:SetValue(addon.db.scale)
@@ -163,9 +235,11 @@ function addon.UI.Settings:Register()
 		panel.SpacingSlider:SetValue(addon.db.spacing)
 		panel.VerticalCheckbox:SetChecked(addon.db.orientation == "VERTICAL")
 		panel.HideArenaCheckbox:SetChecked(addon.db.hideArenaTargetsOutsideArena)
-		if currentFocus ~= panel.PriorityEditBox and panel.PriorityEditBox:GetText() ~= priorityText then
+		if not panel.isEditingPriorityAuraNames and panel.PriorityEditBox:GetText() ~= priorityText then
 			panel.PriorityEditBox:SetText(priorityText)
+			panel.PriorityScrollFrame:SetVerticalScroll(0)
 		end
+		UpdatePriorityEditScroll(panel.PriorityScrollFrame, panel.PriorityEditBox)
 		panel.refreshing = false
 	end
 

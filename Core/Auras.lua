@@ -27,12 +27,47 @@ local function IsAuraSecret(unitToken, index, filter)
     return false
 end
 
-function addon.Auras:GetFirstStealableAura(unitToken)
+local function BuildTrackedAura(aura, index)
+    return {
+        applications = TryGetAuraField(aura, "applications"),
+        auraInstanceID = TryGetAuraField(aura, "auraInstanceID"),
+        duration = TryGetAuraField(aura, "duration"),
+        expirationTime = TryGetAuraField(aura, "expirationTime"),
+        icon = TryGetAuraField(aura, "icon"),
+        name = TryGetAuraField(aura, "name"),
+        scanIndex = index,
+        spellId = TryGetAuraField(aura, "spellId"),
+    }
+end
+
+local function IsNewerAura(candidateAura, currentAura)
+    if not candidateAura then
+        return false
+    end
+
+    if not currentAura then
+        return true
+    end
+
+    if type(candidateAura.auraInstanceID) == "number" and type(currentAura.auraInstanceID) == "number" and candidateAura.auraInstanceID ~= currentAura.auraInstanceID then
+        return candidateAura.auraInstanceID > currentAura.auraInstanceID
+    end
+
+    if type(candidateAura.expirationTime) == "number" and type(currentAura.expirationTime) == "number" and candidateAura.expirationTime ~= currentAura.expirationTime then
+        return candidateAura.expirationTime > currentAura.expirationTime
+    end
+
+    return (candidateAura.scanIndex or 0) > (currentAura.scanIndex or 0)
+end
+
+function addon.Auras:GetDisplayAura(unitToken)
     if not UnitExists(unitToken) then
         return nil
     end
 
     local index = 1
+    local newestPriorityAura
+    local newestStealableAura
 
     while true do
         local aura = C_UnitAuras.GetAuraDataByIndex(unitToken, index, "HELPFUL")
@@ -44,19 +79,20 @@ function addon.Auras:GetFirstStealableAura(unitToken)
             local isStealable = TryGetAuraField(aura, "isStealable")
 
             if isStealable == true then
-                return {
-                    applications = TryGetAuraField(aura, "applications"),
-                    duration = TryGetAuraField(aura, "duration"),
-                    expirationTime = TryGetAuraField(aura, "expirationTime"),
-                    icon = TryGetAuraField(aura, "icon"),
-                    name = TryGetAuraField(aura, "name"),
-                    spellId = TryGetAuraField(aura, "spellId"),
-                }
+                local trackedAura = BuildTrackedAura(aura, index)
+
+                if IsNewerAura(trackedAura, newestStealableAura) then
+                    newestStealableAura = trackedAura
+                end
+
+                if trackedAura.name and addon.IsPriorityAuraName and addon:IsPriorityAuraName(trackedAura.name) and IsNewerAura(trackedAura, newestPriorityAura) then
+                    newestPriorityAura = trackedAura
+                end
             end
         end
 
         index = index + 1
     end
 
-    return nil
+    return newestPriorityAura or newestStealableAura
 end
