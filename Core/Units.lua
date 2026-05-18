@@ -108,9 +108,13 @@ function addon.Units:GetDisplayName(unitToken)
     return unitToken:upper()
 end
 
+function addon.Units:IsHostileUnit(unitToken)
+    return UnitCanAttack("player", unitToken)
+        or UnitIsEnemy("player", unitToken)
+end
+
 function addon.Units:IsValidEnemyUnit(unitToken)
     return UnitExists(unitToken)
         and not UnitIsDeadOrGhost(unitToken)
-        and UnitCanAttack("player", unitToken)
-        and UnitIsVisible(unitToken)
+        and self:IsHostileUnit(unitToken)
 end

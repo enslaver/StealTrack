@@ -110,6 +110,10 @@ function addon.UI.TrackerFrame:ApplyLayout()
     for _, unitToken in addon.Units:IterateTrackedUnits() do
         local button = self.frame.buttons[unitToken]
         button:Hide()
+        if button.Visual then
+            button.Visual:Hide()
+            button.Visual:SetFrameLevel(button:GetFrameLevel() + 5)
+        end
         button:ClearAllPoints()
         button:SetSize(buttonSize, buttonSize)
 	end
@@ -117,6 +121,9 @@ function addon.UI.TrackerFrame:ApplyLayout()
 	for _, unitToken in ipairs(visibleUnits) do
 		local button = self.frame.buttons[unitToken]
 		button:Show()
+        if button.Visual then
+            button.Visual:Show()
+        end
 
         if previousButton then
             if horizontal then

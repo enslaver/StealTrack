@@ -24,22 +24,41 @@ function addon.UI.Buttons:CreateButton(parent, unitToken)
         },
     })
 
-    button:SetBackdropColor(unpack(addon.Constants.COLORS.BACKDROP))
-    button:SetBackdropBorderColor(unpack(addon.Constants.COLORS.INACTIVE))
+    button:SetBackdropColor(0, 0, 0, 0)
+    button:SetBackdropBorderColor(0, 0, 0, 0)
 
-    button.Icon = button:CreateTexture(nil, "ARTWORK")
+    button.Visual = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+    button.Visual:SetPoint("TOPLEFT", button, "TOPLEFT", 0, 0)
+    button.Visual:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 0, 0)
+    button.Visual:SetFrameStrata(button:GetFrameStrata())
+    button.Visual:SetFrameLevel(button:GetFrameLevel() + 5)
+    button.Visual:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        edgeSize = 2,
+        insets = {
+            left = 0,
+            right = 0,
+            top = 0,
+            bottom = 0,
+        },
+    })
+    button.Visual:SetBackdropColor(unpack(addon.Constants.COLORS.BACKDROP))
+    button.Visual:SetBackdropBorderColor(unpack(addon.Constants.COLORS.INACTIVE))
+
+    button.Icon = button.Visual:CreateTexture(nil, "ARTWORK")
     button.Icon:SetPoint("TOPLEFT", 2, -2)
     button.Icon:SetPoint("BOTTOMRIGHT", -2, 2)
     button.Icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 
-    button.IconGlow = button:CreateTexture(nil, "BACKGROUND")
+    button.IconGlow = button.Visual:CreateTexture(nil, "BACKGROUND")
     button.IconGlow:SetPoint("TOPLEFT", button.Icon, "TOPLEFT", -3, 3)
     button.IconGlow:SetPoint("BOTTOMRIGHT", button.Icon, "BOTTOMRIGHT", 3, -3)
     button.IconGlow:SetTexture("Interface\\Buttons\\WHITE8X8")
     button.IconGlow:SetBlendMode("ADD")
     button.IconGlow:Hide()
 
-    button.IconPixelBorder = CreateFrame("Frame", nil, button, "BackdropTemplate")
+    button.IconPixelBorder = CreateFrame("Frame", nil, button.Visual, "BackdropTemplate")
     button.IconPixelBorder:SetPoint("TOPLEFT", button.Icon, "TOPLEFT", -1, 1)
     button.IconPixelBorder:SetPoint("BOTTOMRIGHT", button.Icon, "BOTTOMRIGHT", 1, -1)
     button.IconPixelBorder:SetBackdrop({
@@ -61,13 +80,13 @@ function addon.UI.Buttons:CreateButton(parent, unitToken)
     button.IconGlowPulse.FadeIn:SetToAlpha(0.65)
     button.IconGlowPulse.FadeIn:SetDuration(0.65)
 
-    button.RangeIndicator = button:CreateTexture(nil, "OVERLAY")
+    button.RangeIndicator = button.Visual:CreateTexture(nil, "OVERLAY")
     button.RangeIndicator:SetPoint("TOPRIGHT", -2, -2)
     button.RangeIndicator:SetSize(8, 8)
     button.RangeIndicator:SetTexture("Interface\\Buttons\\WHITE8X8")
 
-    button.Label = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    button.Label:SetPoint("BOTTOM", button, "BOTTOM", 0, 3)
+    button.Label = button.Visual:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    button.Label:SetPoint("BOTTOM", button.Visual, "BOTTOM", 0, 3)
     button.Label:SetJustifyH("CENTER")
     button.Label:SetShadowOffset(1, -1)
 
@@ -140,7 +159,7 @@ function addon.UI.Buttons:UpdateButton(button, state)
     end
 
     button.Icon:SetAlpha(iconAlpha)
-    button:SetBackdropBorderColor(unpack(borderColor))
+    button.Visual:SetBackdropBorderColor(unpack(borderColor))
     button.RangeIndicator:SetVertexColor(unpack(borderColor))
     button.Label:SetTextColor(unpack(labelColor))
 
