@@ -2,6 +2,8 @@ local _, addon = ...
 
 addon.Auras = {}
 
+local HELPFUL_AURA_FILTER = "HELPFUL|INCLUDE_NAME_PLATE_ONLY"
+
 local function TryGetAuraField(aura, fieldName)
     local ok, value = pcall(function()
         return aura[fieldName]
@@ -31,6 +33,7 @@ local function BuildTrackedAura(aura, index)
     return {
         applications = TryGetAuraField(aura, "applications"),
         auraInstanceID = TryGetAuraField(aura, "auraInstanceID"),
+        dispelName = TryGetAuraField(aura, "dispelName"),
         duration = TryGetAuraField(aura, "duration"),
         expirationTime = TryGetAuraField(aura, "expirationTime"),
         icon = TryGetAuraField(aura, "icon"),
@@ -38,6 +41,46 @@ local function BuildTrackedAura(aura, index)
         scanIndex = index,
         spellId = TryGetAuraField(aura, "spellId"),
     }
+end
+
+local function GetHelpfulAuras(unitToken)
+    if C_UnitAuras.GetUnitAuras then
+        return C_UnitAuras.GetUnitAuras(unitToken, HELPFUL_AURA_FILTER) or {}
+    end
+
+    local helpfulAuras = {}
+    local index = 1
+
+    while true do
+        local aura = C_UnitAuras.GetAuraDataByIndex(unitToken, index, HELPFUL_AURA_FILTER)
+        if not aura then
+            break
+        end
+
+        if not IsAuraSecret(unitToken, index, HELPFUL_AURA_FILTER) then
+            table.insert(helpfulAuras, aura)
+        end
+
+        index = index + 1
+    end
+
+    return helpfulAuras
+end
+
+local function IsSpellstealableAura(unitToken, aura)
+    if not aura then
+        return false
+    end
+
+    if TryGetAuraField(aura, "isStealable") == true then
+        return true
+    end
+
+    if TryGetAuraField(aura, "canActivePlayerDispel") == true then
+        return true
+    end
+
+    return false
 end
 
 local function IsNewerAura(candidateAura, currentAura)
@@ -65,37 +108,25 @@ function addon.Auras:GetDisplayAura(unitToken)
         return nil, nil
     end
 
-    local index = 1
     local newestHelpfulAura
     local newestPriorityAura
     local newestStealableAura
 
-    while true do
-        local aura = C_UnitAuras.GetAuraDataByIndex(unitToken, index, "HELPFUL")
-        if not aura then
-            break
+    for index, aura in ipairs(GetHelpfulAuras(unitToken)) do
+        local isStealable = IsSpellstealableAura(unitToken, aura)
+        local trackedAura = BuildTrackedAura(aura, index)
+
+        if IsNewerAura(trackedAura, newestHelpfulAura) then
+            newestHelpfulAura = trackedAura
         end
 
-        if not IsAuraSecret(unitToken, index, "HELPFUL") then
-            local isStealable = TryGetAuraField(aura, "isStealable")
-            local trackedAura = BuildTrackedAura(aura, index)
-
-            if IsNewerAura(trackedAura, newestHelpfulAura) then
-                newestHelpfulAura = trackedAura
-            end
-
-            if trackedAura.name and addon.IsPriorityAuraName and addon:IsPriorityAuraName(trackedAura.name) and IsNewerAura(trackedAura, newestPriorityAura) then
-                newestPriorityAura = trackedAura
-            end
-
-            if isStealable == true then
-                if IsNewerAura(trackedAura, newestStealableAura) then
-                    newestStealableAura = trackedAura
-                end
-            end
+        if trackedAura.name and addon.IsPriorityAuraName and addon:IsPriorityAuraName(trackedAura.name) and IsNewerAura(trackedAura, newestPriorityAura) then
+            newestPriorityAura = trackedAura
         end
 
-        index = index + 1
+        if isStealable == true and IsNewerAura(trackedAura, newestStealableAura) then
+            newestStealableAura = trackedAura
+        end
     end
 
     return newestPriorityAura or newestHelpfulAura, newestStealableAura
