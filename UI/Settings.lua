@@ -72,24 +72,44 @@ function addon.UI.Settings:Register()
 	end
 
 	local panel = CreateFrame("Frame", "StealTrackSettingsPanel", UIParent)
+	local content
 	panel.name = "StealTrack"
 
-	panel.Title = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+	panel.ScrollFrame = CreateFrame("ScrollFrame", "StealTrackSettingsMainScrollFrame", panel, "UIPanelScrollFrameTemplate")
+	panel.ScrollFrame:SetPoint("TOPLEFT", 12, -12)
+	panel.ScrollFrame:SetPoint("BOTTOMRIGHT", -28, 12)
+	panel.ScrollFrame.ScrollBar = _G.StealTrackSettingsMainScrollFrameScrollBar
+	panel.ScrollFrame.ScrollBar:SetValueStep(24)
+	panel.ScrollFrame:EnableMouseWheel(true)
+	panel.ScrollFrame:SetScript("OnMouseWheel", function(self, delta)
+		local scrollBar = self.ScrollBar
+		local currentValue = scrollBar:GetValue()
+		local step = scrollBar:GetValueStep()
+
+		scrollBar:SetValue(currentValue - (delta * step))
+	end)
+
+	panel.Content = CreateFrame("Frame", nil, panel.ScrollFrame)
+	panel.Content:SetSize(520, 620)
+	panel.ScrollFrame:SetScrollChild(panel.Content)
+	content = panel.Content
+
+	panel.Title = content:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
 	panel.Title:SetPoint("TOPLEFT", 16, -16)
 	panel.Title:SetText("StealTrack")
 
-	panel.Subtitle = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+	panel.Subtitle = content:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
 	panel.Subtitle:SetPoint("TOPLEFT", panel.Title, "BOTTOMLEFT", 0, -8)
 	panel.Subtitle:SetText("Configure layout for Spellsteal tracker buttons.")
 
-	panel.LockCheckbox = CreateCheckbox(panel, "Lock tracker position")
+	panel.LockCheckbox = CreateCheckbox(content, "Lock tracker position")
 	panel.LockCheckbox:SetPoint("TOPLEFT", panel.Subtitle, "BOTTOMLEFT", 0, -18)
 	panel.LockCheckbox:SetChecked(addon.db.locked)
 	panel.LockCheckbox:SetScript("OnClick", function(self)
 		addon:SetLocked(self:GetChecked())
 	end)
 
-	panel.ScaleSlider = CreateSlider(panel, "StealTrackScaleSlider", "Scale", 0.7, 1.5, 0.05)
+	panel.ScaleSlider = CreateSlider(content, "StealTrackScaleSlider", "Scale", 0.7, 1.5, 0.05)
 	panel.ScaleSlider:SetWidth(220)
 	panel.ScaleSlider:SetPoint("TOPLEFT", panel.LockCheckbox, "BOTTOMLEFT", 0, -30)
 	panel.ScaleSlider:SetValue(addon.db.scale)
@@ -101,7 +121,7 @@ function addon.UI.Settings:Register()
 		addon:SetScale(value)
 	end)
 
-	panel.IconSizeSlider = CreateSlider(panel, "StealTrackSizeSlider", "Icon Size", 28, 64, 2)
+	panel.IconSizeSlider = CreateSlider(content, "StealTrackSizeSlider", "Icon Size", 28, 64, 2)
 	panel.IconSizeSlider:SetWidth(220)
 	panel.IconSizeSlider:SetPoint("TOPLEFT", panel.ScaleSlider, "BOTTOMLEFT", 0, -36)
 	panel.IconSizeSlider:SetValue(addon.db.buttonSize)
@@ -113,7 +133,7 @@ function addon.UI.Settings:Register()
 		addon:SetButtonSize(value)
 	end)
 
-	panel.SpacingSlider = CreateSlider(panel, "StealTrackSpacingSlider", "Spacing", 0, 20, 1)
+	panel.SpacingSlider = CreateSlider(content, "StealTrackSpacingSlider", "Spacing", 0, 20, 1)
 	panel.SpacingSlider:SetWidth(220)
 	panel.SpacingSlider:SetPoint("TOPLEFT", panel.IconSizeSlider, "BOTTOMLEFT", 0, -36)
 	panel.SpacingSlider:SetValue(addon.db.spacing)
@@ -125,21 +145,21 @@ function addon.UI.Settings:Register()
 		addon:SetSpacing(value)
 	end)
 
-	panel.VerticalCheckbox = CreateCheckbox(panel, "Vertical layout")
+	panel.VerticalCheckbox = CreateCheckbox(content, "Vertical layout")
 	panel.VerticalCheckbox:SetPoint("TOPLEFT", panel.SpacingSlider, "BOTTOMLEFT", 0, -26)
 	panel.VerticalCheckbox:SetChecked(addon.db.orientation == "VERTICAL")
 	panel.VerticalCheckbox:SetScript("OnClick", function(self)
 		addon:SetOrientation(self:GetChecked() and "VERTICAL" or "HORIZONTAL")
 	end)
 
-	panel.HideArenaCheckbox = CreateCheckbox(panel, "Hide arena targets outside arenas")
+	panel.HideArenaCheckbox = CreateCheckbox(content, "Hide arena targets outside arenas")
 	panel.HideArenaCheckbox:SetPoint("TOPLEFT", panel.VerticalCheckbox, "BOTTOMLEFT", 0, -14)
 	panel.HideArenaCheckbox:SetChecked(addon.db.hideArenaTargetsOutsideArena)
 	panel.HideArenaCheckbox:SetScript("OnClick", function(self)
 		addon:SetHideArenaTargetsOutsideArena(self:GetChecked())
 	end)
 
-	panel.ResetButton = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+	panel.ResetButton = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
 	panel.ResetButton:SetSize(140, 24)
 	panel.ResetButton:SetPoint("TOPLEFT", panel.HideArenaCheckbox, "BOTTOMLEFT", 0, -20)
 	panel.ResetButton:SetText("Reset Position")
@@ -147,15 +167,15 @@ function addon.UI.Settings:Register()
 		addon:ResetPosition()
 	end)
 
-	panel.PriorityLabel = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+	panel.PriorityLabel = content:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
 	panel.PriorityLabel:SetPoint("TOPLEFT", panel.ResetButton, "BOTTOMLEFT", 0, -24)
 	panel.PriorityLabel:SetText("Priority highlight spells (one per line)")
 
-	panel.PriorityHelp = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+	panel.PriorityHelp = content:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
 	panel.PriorityHelp:SetPoint("TOPLEFT", panel.PriorityLabel, "BOTTOMLEFT", 0, -4)
 	panel.PriorityHelp:SetText("Add or remove spell names here, then click Apply.")
 
-	panel.PriorityEditContainer = CreateFrame("Frame", nil, panel, "BackdropTemplate")
+	panel.PriorityEditContainer = CreateFrame("Frame", nil, content, "BackdropTemplate")
 	panel.PriorityEditContainer:SetSize(260, 140)
 	panel.PriorityEditContainer:SetPoint("TOPLEFT", panel.PriorityHelp, "BOTTOMLEFT", 0, -8)
 	panel.PriorityEditContainer:SetBackdrop({
@@ -208,7 +228,7 @@ function addon.UI.Settings:Register()
 	end)
 	panel.PriorityScrollFrame:SetScrollChild(panel.PriorityEditBox)
 
-	panel.ApplyPriorityButton = CreateButton(panel, 90, "Apply")
+	panel.ApplyPriorityButton = CreateButton(content, 90, "Apply")
 	panel.ApplyPriorityButton:SetPoint("TOPLEFT", panel.PriorityEditContainer, "BOTTOMLEFT", 0, -10)
 	panel.ApplyPriorityButton:SetScript("OnClick", function()
 		panel.isEditingPriorityAuraNames = false
@@ -217,7 +237,7 @@ function addon.UI.Settings:Register()
 		panel.Refresh()
 	end)
 
-	panel.ResetPriorityButton = CreateButton(panel, 130, "Reset Defaults")
+	panel.ResetPriorityButton = CreateButton(content, 130, "Reset Defaults")
 	panel.ResetPriorityButton:SetPoint("LEFT", panel.ApplyPriorityButton, "RIGHT", 8, 0)
 	panel.ResetPriorityButton:SetScript("OnClick", function()
 		addon:ResetPriorityAuraNames()

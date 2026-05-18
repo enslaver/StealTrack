@@ -7,6 +7,8 @@ local trackedEvents = {
     "PLAYER_ENTERING_WORLD",
     "PLAYER_TARGET_CHANGED",
     "PLAYER_FOCUS_CHANGED",
+    "NAME_PLATE_UNIT_ADDED",
+    "NAME_PLATE_UNIT_REMOVED",
     "PLAYER_REGEN_DISABLED",
     "PLAYER_REGEN_ENABLED",
     "PLAYER_SPECIALIZATION_CHANGED",
@@ -52,6 +54,57 @@ local function CloneTable(source)
     return copy
 end
 
+local function CloneAuraData(aura)
+    if type(aura) ~= "table" then
+        return nil
+    end
+
+    return {
+        applications = aura.applications,
+        auraInstanceID = aura.auraInstanceID,
+        duration = aura.duration,
+        expirationTime = aura.expirationTime,
+        icon = aura.icon,
+        isHelpful = aura.isHelpful,
+        name = aura.name,
+        spellId = aura.spellId,
+    }
+end
+
+local function ToDebugString(value)
+    if value == nil then
+        return "nil"
+    end
+
+    if type(value) == "boolean" then
+        return value and "true" or "false"
+    end
+
+    return tostring(value)
+end
+
+local function ResolveSpellIDByName(auraName)
+    if auraName == nil or auraName == "" then
+        return nil
+    end
+
+    if C_Spell and C_Spell.GetSpellInfo then
+        local ok, spellInfo = pcall(C_Spell.GetSpellInfo, auraName)
+        if ok and type(spellInfo) == "table" and type(spellInfo.spellID) == "number" then
+            return spellInfo.spellID
+        end
+    end
+
+    if GetSpellInfo then
+        local ok, _, _, _, _, _, spellID = pcall(GetSpellInfo, auraName)
+        if ok and type(spellID) == "number" then
+            return spellID
+        end
+    end
+
+    return nil
+end
+
 function addon:GetSpellstealName()
     if self.spellstealName then
         return self.spellstealName
@@ -95,14 +148,14 @@ end
 function addon:BuildUnitState(unitToken)
     local spellKnown = self:PlayerCanSpellsteal()
     local exists = UnitExists(unitToken)
-    local isEnemy = exists and UnitCanAttack("player", unitToken) or false
+    local isEnemy = exists and self.Units:IsHostileUnit(unitToken) or false
     local aura
     local isPriorityAura = false
     local stealableAura
 
     if spellKnown and self.Units:IsValidEnemyUnit(unitToken) then
         aura, stealableAura = self.Auras:GetDisplayAura(unitToken)
-        if aura and aura.name and self:IsPriorityAuraName(aura.name) then
+        if aura and not isEnemy and self:IsPriorityAura(aura) then
             isPriorityAura = true
         end
     end
@@ -124,7 +177,46 @@ function addon:BuildUnitState(unitToken)
 end
 
 function addon:IsPriorityAuraName(auraName)
-    return auraName ~= nil and self.db ~= nil and self.db.priorityAuraNames ~= nil and self.db.priorityAuraNames[auraName] == true
+    if auraName == nil or self.db == nil or self.db.priorityAuraNames == nil then
+        return false
+    end
+
+    local ok, isPriorityAuraName = pcall(function()
+        return self.db.priorityAuraNames[auraName] == true
+    end)
+
+    return ok and isPriorityAuraName or false
+end
+
+function addon:RebuildPriorityAuraSpellIDs()
+    local priorityAuraSpellIDs = {}
+
+    for auraName in pairs(self.db and self.db.priorityAuraNames or {}) do
+        local spellID = ResolveSpellIDByName(auraName)
+
+        if type(spellID) == "number" then
+            priorityAuraSpellIDs[spellID] = true
+        end
+    end
+
+    self.priorityAuraSpellIDs = priorityAuraSpellIDs
+end
+
+function addon:IsPriorityAura(aura)
+    if type(aura) ~= "table" then
+        return false
+    end
+
+    if aura.source ~= nil then
+        return false
+    end
+
+    local spellID = aura.spellId or aura.spellID
+    if type(spellID) == "number" and self.priorityAuraSpellIDs and self.priorityAuraSpellIDs[spellID] == true then
+        return true
+    end
+
+    return self:IsPriorityAuraName(aura.name)
 end
 
 function addon:GetPriorityAuraNamesText()
@@ -153,12 +245,190 @@ function addon:SetPriorityAuraNamesFromText(text)
     if type(StealTrackDB) == "table" then
         StealTrackDB.priorityAuraNames = updatedNames
     end
+    self:RebuildPriorityAuraSpellIDs()
     self:RefreshAll()
 end
 
 function addon:ResetPriorityAuraNames()
     self.db.priorityAuraNames = CloneTable(self.Constants.DEFAULTS.priorityAuraNames)
+    self:RebuildPriorityAuraSpellIDs()
     self:RefreshAll()
+end
+
+function addon:ProcessNameplateAuraUpdate(unitToken, updateInfo)
+    if type(unitToken) ~= "string" or unitToken:match("^nameplate%d+$") == nil then
+        return
+    end
+
+    self.nameplateAuraCache = self.nameplateAuraCache or {}
+
+    local cache = self.nameplateAuraCache[unitToken]
+    if not cache then
+        cache = { byInstanceID = {} }
+        self.nameplateAuraCache[unitToken] = cache
+    end
+
+    if updateInfo and updateInfo.isFullUpdate and C_UnitAuras.GetUnitAuras then
+        local fullAuras = C_UnitAuras.GetUnitAuras(unitToken, "HELPFUL") or {}
+
+        if #fullAuras > 0 then
+            cache.byInstanceID = {}
+            for _, aura in ipairs(fullAuras) do
+                if aura and aura.auraInstanceID then
+                    cache.byInstanceID[aura.auraInstanceID] = CloneAuraData(aura)
+                end
+            end
+        end
+    end
+
+    if updateInfo and updateInfo.addedAuras then
+        for _, aura in ipairs(updateInfo.addedAuras) do
+            if aura and aura.isHelpful and aura.auraInstanceID then
+                cache.byInstanceID[aura.auraInstanceID] = CloneAuraData(aura)
+            end
+        end
+    end
+
+    if updateInfo and updateInfo.updatedAuraInstanceIDs then
+        for _, auraInstanceID in ipairs(updateInfo.updatedAuraInstanceIDs) do
+            local aura = C_UnitAuras.GetAuraDataByAuraInstanceID and C_UnitAuras.GetAuraDataByAuraInstanceID(unitToken, auraInstanceID) or nil
+
+            if aura and aura.isHelpful and aura.auraInstanceID then
+                cache.byInstanceID[aura.auraInstanceID] = CloneAuraData(aura)
+            end
+        end
+    end
+
+    if updateInfo and updateInfo.removedAuraInstanceIDs then
+        for _, auraInstanceID in ipairs(updateInfo.removedAuraInstanceIDs) do
+            cache.byInstanceID[auraInstanceID] = nil
+        end
+    end
+end
+
+function addon:HookNameplateAurasFrame(unitToken)
+    if not C_NamePlate or not C_NamePlate.GetNamePlateForUnit then
+        return
+    end
+
+    local nameplate = C_NamePlate.GetNamePlateForUnit(unitToken)
+    local unitFrame = nameplate and nameplate.UnitFrame
+    local aurasFrame = unitFrame and unitFrame.AurasFrame
+
+    if not aurasFrame then
+        return
+    end
+
+    self.hookedNameplateAuraFrames = self.hookedNameplateAuraFrames or setmetatable({}, { __mode = "k" })
+    if self.hookedNameplateAuraFrames[aurasFrame] then
+        return
+    end
+
+    self.hookedNameplateAuraFrames[aurasFrame] = true
+
+    hooksecurefunc(aurasFrame, "RefreshAuras", function(frame, data)
+        if frame.IsForbidden and frame:IsForbidden() then
+            return
+        end
+
+        local parent = frame:GetParent()
+        local nameplateUnitToken = parent and parent.unit or unitToken
+
+        if nameplateUnitToken then
+            addon:ProcessNameplateAuraUpdate(nameplateUnitToken, data or { isFullUpdate = true })
+        end
+    end)
+end
+
+function addon:InstallNameplateAuraHooks()
+    if self.nameplateAuraHooksInstalled then
+        return
+    end
+
+    self.nameplateAuraHooksInstalled = true
+
+    if NamePlateDriverFrame then
+        hooksecurefunc(NamePlateDriverFrame, "OnNamePlateAdded", function(_, unitToken)
+            if unitToken ~= "preview" then
+                addon:HookNameplateAurasFrame(unitToken)
+            end
+        end)
+    end
+
+    if C_NamePlate and C_NamePlate.GetNamePlates then
+        for _, nameplate in ipairs(C_NamePlate.GetNamePlates() or {}) do
+            local unitToken = nameplate and (nameplate.unitToken or (nameplate.GetUnit and nameplate:GetUnit()))
+            if unitToken then
+                self:HookNameplateAurasFrame(unitToken)
+            end
+        end
+    end
+end
+
+function addon:SetDebugTarget(enabled)
+    self.debugTargetEnabled = enabled and true or false
+    self.lastDebugTargetSignature = nil
+end
+
+function addon:BuildDebugTargetSignature(state, snapshot)
+    return table.concat({
+        ToDebugString(state and state.exists),
+        ToDebugString(state and state.isEnemy),
+        ToDebugString(state and state.hasStealableAura),
+        ToDebugString(snapshot and snapshot.queryUnitToken),
+        ToDebugString(snapshot and snapshot.nameplateUnitToken),
+        ToDebugString(snapshot and snapshot.helpfulCount),
+        ToDebugString(snapshot and snapshot.cachedHelpfulCount),
+        ToDebugString(snapshot and snapshot.nameplateListCount),
+        ToDebugString(snapshot and snapshot.visibleNameplateCount),
+        ToDebugString(snapshot and snapshot.stealableCount),
+        ToDebugString(state and state.inRange),
+    }, "|")
+end
+
+function addon:DumpDebugTarget(reason, force)
+    local unitToken = "target"
+    local state = self:BuildUnitState(unitToken)
+    local snapshot = self.Auras:GetDebugSnapshot(unitToken)
+    local signature = self:BuildDebugTargetSignature(state, snapshot)
+
+    if not force and signature == self.lastDebugTargetSignature then
+        return
+    end
+
+    self.lastDebugTargetSignature = signature
+
+    print(string.format("StealTrack debug [%s]", reason or "manual"))
+    print(string.format(
+        " target: exists=%s hostile=%s canAttack=%s isEnemy=%s visible=%s dead=%s spellKnown=%s name=%s",
+        ToDebugString(UnitExists(unitToken)),
+        ToDebugString(self.Units:IsHostileUnit(unitToken)),
+        ToDebugString(UnitCanAttack("player", unitToken)),
+        ToDebugString(state.isEnemy),
+        ToDebugString(UnitIsVisible(unitToken)),
+        ToDebugString(UnitIsDeadOrGhost(unitToken)),
+        ToDebugString(state.spellKnown),
+        ToDebugString(state.unitName)
+    ))
+    print(string.format(
+        " query: unit=%s nameplate=%s helpful=%s cached=%s listBuffs=%s frameBuffs=%s stealable=%s displayAura=%s stealableAura=%s inRange=%s",
+        ToDebugString(snapshot.queryUnitToken),
+        ToDebugString(snapshot.nameplateUnitToken),
+        ToDebugString(snapshot.helpfulCount),
+        ToDebugString(snapshot.cachedHelpfulCount),
+        ToDebugString(snapshot.nameplateListCount),
+        ToDebugString(snapshot.visibleNameplateCount),
+        ToDebugString(snapshot.stealableCount),
+        ToDebugString(snapshot.displayAuraName),
+        ToDebugString(snapshot.stealableAuraName),
+        ToDebugString(state.inRange)
+    ))
+
+    if snapshot.sampleAuras and #snapshot.sampleAuras > 0 then
+        print(string.format(" auras: %s entries", ToDebugString(#snapshot.sampleAuras)))
+    else
+        print(" auras: none")
+    end
 end
 
 function addon:RefreshAll()
@@ -174,6 +444,10 @@ function addon:RefreshAll()
     if self.UI.Settings.panel and self.UI.Settings.panel:IsVisible() then
         self.UI.Settings.panel.Refresh()
     end
+
+    if self.debugTargetEnabled then
+        self:DumpDebugTarget("REFRESH_ALL", false)
+    end
 end
 
 function addon:RefreshUnit(unitToken)
@@ -183,6 +457,10 @@ function addon:RefreshUnit(unitToken)
 
     self.unitStates[unitToken] = self:BuildUnitState(unitToken)
     self.UI.TrackerFrame:Update(self.unitStates)
+
+    if self.debugTargetEnabled and unitToken == "target" then
+        self:DumpDebugTarget("UNIT_AURA", false)
+    end
 end
 
 function addon:ApplyLayout()
@@ -313,19 +591,41 @@ function addon:RegisterSlashCommands()
             return
         end
 
-        print("StealTrack commands: /st lock, /st reset, /st settings")
+        if command == "debug on" then
+            self:SetDebugTarget(true)
+            print("StealTrack: target debug enabled.")
+            self:DumpDebugTarget("debug on", true)
+            return
+        end
+
+        if command == "debug off" then
+            self:SetDebugTarget(false)
+            print("StealTrack: target debug disabled.")
+            return
+        end
+
+        if command == "debug" or command == "debug dump" then
+            self:DumpDebugTarget("manual", true)
+            return
+        end
+
+        print("StealTrack commands: /st lock, /st reset, /st settings, /st debug on, /st debug off, /st debug")
     end
 end
 
 function addon:Initialize()
     self.db = MergeDefaults(StealTrackDB, self.Constants.DEFAULTS)
     StealTrackDB = self.db
+    self.hostileAuraMemory = {}
+    self.nameplateAuraCache = {}
+    self:RebuildPriorityAuraSpellIDs()
     self:GetSpellstealName()
     self:GetSpellstealTexture()
     self.TrackerFrame = self.UI.TrackerFrame:Create()
     self.UI.Settings:Register()
     self:RegisterSlashCommands()
     self:RegisterGameplayEvents()
+    self:InstallNameplateAuraHooks()
     self.initialized = true
     self.EventFrame:SetScript("OnUpdate", function(_, elapsed)
         addon.elapsedSinceRefresh = (addon.elapsedSinceRefresh or 0) + elapsed
@@ -354,12 +654,37 @@ local function OnEvent(_, event, ...)
         addon:ApplyLayout()
     end
 
+    if addon.debugTargetEnabled and (event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_REGEN_ENABLED" or event == "PLAYER_TARGET_CHANGED") then
+        addon:DumpDebugTarget(event, true)
+    end
+
     if event == "UNIT_AURA" then
-        local unitToken = ...
+        local unitToken, updateInfo = ...
+
+        if type(unitToken) == "string" and unitToken:match("^nameplate%d+$") then
+            addon:ProcessNameplateAuraUpdate(unitToken, updateInfo)
+        end
+
         if addon.Units:IsTrackedUnit(unitToken) then
             addon:RefreshUnit(unitToken)
         end
         return
+    end
+
+    if event == "NAME_PLATE_UNIT_ADDED" then
+        local unitToken = ...
+        addon:HookNameplateAurasFrame(unitToken)
+        addon:ProcessNameplateAuraUpdate(unitToken, { isFullUpdate = true })
+    end
+
+    if event == "NAME_PLATE_UNIT_REMOVED" then
+        local unitToken = ...
+        if addon.nameplateAuraCache then
+            addon.nameplateAuraCache[unitToken] = nil
+        end
+        if addon.hostileAuraMemory then
+            addon.hostileAuraMemory[unitToken] = nil
+        end
     end
 
     if event == "ARENA_OPPONENT_UPDATE" then

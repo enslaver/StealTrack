@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.0 - 2026-05-18
+
+Hostile target aura tracking refresh.
+
+### Changed
+
+- Reworked hostile target aura detection to use Blizzard nameplate aura state and short-lived fallback retention when hostile aura updates briefly clear
+- Hardened hostile aura handling against Retail secret aura values in debug, priority matching, and cache paths
+- Moved mutable button visuals onto a non-secure overlay so icon state updates are not blocked by secure button restrictions in combat
+- Restored the main settings panel scrollbar
+- Expanded target debug output for hostile aura troubleshooting
+
 ## 0.1.0 - 2026-05-17
 
 Initial public release.
