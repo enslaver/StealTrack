@@ -214,6 +214,32 @@ local function GetVisibleNameplateBuffAuras(unitToken)
 end
 
 local function IsSpellstealableAura(unitToken, aura)
+    local function IsAuraFlagSet(fieldName)
+        local ok, isSet = pcall(function()
+            return aura[fieldName] and true or false
+        end)
+
+        return ok and isSet == true
+    end
+
+    local function IsAuraMagicDispelType()
+        local ok, isMagic = pcall(function()
+            local dispelType = aura.dispelName or aura.dispelType
+
+            if dispelType == nil then
+                return false
+            end
+
+            if _G.DISPEL_TYPE_MAGIC and dispelType == _G.DISPEL_TYPE_MAGIC then
+                return true
+            end
+
+            return dispelType == "Magic"
+        end)
+
+        return ok and isMagic == true
+    end
+
     if not aura then
         return false
     end
@@ -222,20 +248,19 @@ local function IsSpellstealableAura(unitToken, aura)
         return false
     end
 
-    if TryGetAuraField(aura, "isStealable") == true then
+    if IsAuraFlagSet("isStealable") then
         return true
     end
 
-    if TryGetAuraField(aura, "canStealOrPurge") == true then
+    if IsAuraFlagSet("canStealOrPurge") then
         return true
     end
 
-    if TryGetAuraField(aura, "canActivePlayerDispel") == true then
+    if IsAuraFlagSet("canActivePlayerDispel") then
         return true
     end
 
-    local dispelType = TryGetAuraField(aura, "dispelName") or TryGetAuraField(aura, "dispelType")
-    return dispelType == "Magic" or dispelType == _G.DISPEL_TYPE_MAGIC
+    return IsAuraMagicDispelType()
 end
 
 local function TryCompareAuraNumbers(candidateValue, currentValue)

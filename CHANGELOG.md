@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.2 - 2026-05-18
+
+Arena taint follow-up.
+
+### Fixed
+
+- Protected priority aura lookups from secret-key taint during hostile unit scans
+- Hardened arena target handling against secret boolean and secret number aura values
+- Kept arena1 through arena5 nameplate lookups safely gated away from forbidden API calls
+
 ## 0.2.1 - 2026-05-18
 
 Arena target aura stability update.
