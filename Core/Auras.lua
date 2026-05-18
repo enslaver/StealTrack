@@ -135,7 +135,15 @@ function GetMatchingNameplateUnitToken(unitToken)
         return nil
     end
 
-    local nameplate = C_NamePlate.GetNamePlateForUnit(unitToken)
+    if addon.Units and addon.Units.IsArenaUnit and addon.Units:IsArenaUnit(unitToken) then
+        return nil
+    end
+
+    local ok, nameplate = pcall(C_NamePlate.GetNamePlateForUnit, unitToken)
+    if not ok then
+        return nil
+    end
+
     local nameplateUnitToken = nameplate and (nameplate.unitToken or (nameplate.GetUnit and nameplate:GetUnit()))
 
     if nameplateUnitToken then
@@ -214,7 +222,36 @@ local function IsSpellstealableAura(unitToken, aura)
         return false
     end
 
-    return false
+    if TryGetAuraField(aura, "isStealable") == true then
+        return true
+    end
+
+    if TryGetAuraField(aura, "canStealOrPurge") == true then
+        return true
+    end
+
+    if TryGetAuraField(aura, "canActivePlayerDispel") == true then
+        return true
+    end
+
+    local dispelType = TryGetAuraField(aura, "dispelName") or TryGetAuraField(aura, "dispelType")
+    return dispelType == "Magic" or dispelType == _G.DISPEL_TYPE_MAGIC
+end
+
+local function TryCompareAuraNumbers(candidateValue, currentValue)
+    if type(candidateValue) ~= "number" or type(currentValue) ~= "number" then
+        return nil
+    end
+
+    local ok, areDifferent, isGreater = pcall(function()
+        return candidateValue ~= currentValue, candidateValue > currentValue
+    end)
+
+    if not ok or not areDifferent then
+        return nil
+    end
+
+    return isGreater == true
 end
 
 local function IsNewerAura(candidateAura, currentAura)
@@ -226,12 +263,14 @@ local function IsNewerAura(candidateAura, currentAura)
         return true
     end
 
-    if type(candidateAura.auraInstanceID) == "number" and type(currentAura.auraInstanceID) == "number" and candidateAura.auraInstanceID ~= currentAura.auraInstanceID then
-        return candidateAura.auraInstanceID > currentAura.auraInstanceID
+    local isNewerByInstance = TryCompareAuraNumbers(candidateAura.auraInstanceID, currentAura.auraInstanceID)
+    if isNewerByInstance ~= nil then
+        return isNewerByInstance
     end
 
-    if type(candidateAura.expirationTime) == "number" and type(currentAura.expirationTime) == "number" and candidateAura.expirationTime ~= currentAura.expirationTime then
-        return candidateAura.expirationTime > currentAura.expirationTime
+    local isNewerByExpiration = TryCompareAuraNumbers(candidateAura.expirationTime, currentAura.expirationTime)
+    if isNewerByExpiration ~= nil then
+        return isNewerByExpiration
     end
 
     return (candidateAura.scanIndex or 0) > (currentAura.scanIndex or 0)
@@ -402,6 +441,7 @@ function addon.Auras:GetDisplayAura(unitToken)
     end
 
     local isHostile = addon.Units and addon.Units.IsHostileUnit and addon.Units:IsHostileUnit(unitToken)
+    local helpfulAuras = GetHelpfulAuras(unitToken)
 
     local fallbackHelpfulAura
     local fallbackPriorityAura
@@ -414,26 +454,24 @@ function addon.Auras:GetDisplayAura(unitToken)
     local newestPriorityAura
     local newestStealableAura
 
-    if not isHostile then
-        local helpfulAuras = GetHelpfulAuras(unitToken)
+    for index, aura in ipairs(helpfulAuras) do
+        local isStealable = IsSpellstealableAura(unitToken, aura)
+        local trackedAura = BuildTrackedAura(aura, index)
 
-        for index, aura in ipairs(helpfulAuras) do
-            local isStealable = IsSpellstealableAura(unitToken, aura)
-            local trackedAura = BuildTrackedAura(aura, index)
-
-            if IsNewerAura(trackedAura, newestHelpfulAura) then
-                newestHelpfulAura = trackedAura
-            end
-
-            if addon.IsPriorityAura and addon:IsPriorityAura(trackedAura) and IsNewerAura(trackedAura, newestPriorityAura) then
-                newestPriorityAura = trackedAura
-            end
-
-            if isStealable == true and IsNewerAura(trackedAura, newestStealableAura) then
-                newestStealableAura = trackedAura
-            end
+        if IsNewerAura(trackedAura, newestHelpfulAura) then
+            newestHelpfulAura = trackedAura
         end
 
+        if addon.IsPriorityAura and addon:IsPriorityAura(trackedAura) and IsNewerAura(trackedAura, newestPriorityAura) then
+            newestPriorityAura = trackedAura
+        end
+
+        if isStealable == true and IsNewerAura(trackedAura, newestStealableAura) then
+            newestStealableAura = trackedAura
+        end
+    end
+
+    if not isHostile then
         for _, aura in ipairs(cachedHelpfulAuras) do
             cachedIndex = cachedIndex + 1
 
