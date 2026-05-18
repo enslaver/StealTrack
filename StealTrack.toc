@@ -2,7 +2,7 @@
 ## Title: StealTrack
 ## Notes: Tracks stealable buffs for Mage Spellsteal on target, focus, and arena enemies.
 ## Author: GitHub Copilot
-## Version: 0.2.1
+## Version: 0.2.2
 ## SavedVariables: StealTrackDB
 
 Core\Constants.lua

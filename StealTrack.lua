@@ -212,8 +212,14 @@ function addon:IsPriorityAura(aura)
     end
 
     local spellID = aura.spellId or aura.spellID
-    if type(spellID) == "number" and self.priorityAuraSpellIDs and self.priorityAuraSpellIDs[spellID] == true then
-        return true
+    if type(spellID) == "number" and self.priorityAuraSpellIDs then
+        local ok, isPriorityAura = pcall(function()
+            return self.priorityAuraSpellIDs[spellID] == true
+        end)
+
+        if ok and isPriorityAura then
+            return true
+        end
     end
 
     return self:IsPriorityAuraName(aura.name)
