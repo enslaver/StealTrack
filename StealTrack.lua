@@ -311,7 +311,15 @@ function addon:HookNameplateAurasFrame(unitToken)
         return
     end
 
-    local nameplate = C_NamePlate.GetNamePlateForUnit(unitToken)
+    if self.Units and self.Units.IsArenaUnit and self.Units:IsArenaUnit(unitToken) then
+        return
+    end
+
+    local ok, nameplate = pcall(C_NamePlate.GetNamePlateForUnit, unitToken)
+    if not ok then
+        return
+    end
+
     local unitFrame = nameplate and nameplate.UnitFrame
     local aurasFrame = unitFrame and unitFrame.AurasFrame
 

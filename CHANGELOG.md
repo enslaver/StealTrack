@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.1 - 2026-05-18
+
+Arena target aura stability update.
+
+### Fixed
+
+- Prevented forbidden nameplate API calls for `arena1` through `arena5` by skipping direct nameplate lookups for arena unit tokens and wrapping calls safely
+- Fixed taint-sensitive aura ordering by protecting numeric aura comparisons against secret/protected aura values
+- Restored arena hostile helpful-aura evaluation so arena icon updates reflect current buff state correctly
+
+### Changed
+
+- Expanded stealable buff detection to handle multiple Retail aura flags (`isStealable`, `canStealOrPurge`, `canActivePlayerDispel`) and magic dispel type fallback
+
 ## 0.2.0 - 2026-05-18
 
 Hostile target aura tracking refresh.
